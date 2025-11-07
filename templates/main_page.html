@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link rel="stylesheet"
+      href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css"
+      integrity="sha512-dTfge/zgoMYpP7QbHy4gWMEGsbsdZeCXz7irItjcC3sPUFtf0kuFbDz/ixG7ArTxmDjLXDmezHubeNikyKGVyQ=="
+      crossorigin="anonymous">
+
+    <title>My To-Do Board</title>
+
+    <style>
+      body { background-color: #f9f9f9; }
+      .todo-list { margin-top: 30px; list-style: none; padding: 0; }
+      .todo-item {
+        position: relative; background: #fff; border-left: 5px solid #5cb85c;
+        padding: 16px 20px 12px 28px; margin-bottom: 16px; border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.06); line-height: 1.5;
+      }
+      .todo-content { font-weight: 600; }
+      .todo-date { display: block; color: #999; font-size: 0.9em; margin-top: 6px; }
+      .todo-form { margin-top: 28px; background: #fff; padding: 16px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+      .todo-item { display: block; }
+      .todo-complete-form {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 0; padding: 0; border: 0; background: transparent;
+      }
+      .todo-checkbox {
+        width: 20px; height: 20px; margin: 0;
+        accent-color: #5cb85c; /* optional, nur Farbe des Häkchens */
+      }
+      .todo-content { font-weight: 600; flex: 1; }
+      .navbar-brand { font-weight: 600; }
+    </style>
+  </head>
+
+  <body>
+    <nav class="navbar navbar-inverse">
+      <div class="container">
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle collapsed" data-toggle="collapse"
+            data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <a class="navbar-brand" href="#">My To-Do Board</a>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container">
+
+      <ul class="todo-list">
+          {% for todo in todos %}
+            <li class="todo-item">
+              <form action="/complete" method="POST" class="todo-complete-form">
+
+                <input type="hidden" name="id" value="{{ todo.id }}">
+
+                <!-- Checkbox triggert Submit -->
+                <input
+                  type="checkbox"
+                  class="todo-checkbox"
+                  id="todo-{{ todo.id }}"
+                  name="complete"
+                  value="1"
+                  onchange="this.form.submit()">
+
+                <label for="todo-{{ todo.id }}" class="todo-content">
+                  {{ todo.content }}
+                  <span class="todo-date">📅 {{ todo.date.strftime('%d.%m.%Y %H:%M') }}</span>
+                </label>
+
+                <!-- Fallback ohne JS -->
+                <noscript>
+                  <button type="submit" class="btn btn-xs btn-default" style="margin-left:10px;">
+                    Als erledigt markieren
+                  </button>
+                </noscript>
+              </form>
+            </li>
+          {% else %}
+            <li class="todo-item">
+              <div class="todo-content">Keine To-dos vorhanden.</div>
+              <span class="todo-date">Füge unten dein erstes To-do hinzu.</span>
+            </li>
+          {% endfor %}
+        </ul>
+
+      <div class="todo-form">
+        <form action="." method="POST">
+          <div class="form-group">
+            <label for="contents">To-do</label>
+            <textarea id="contents" name="contents" class="form-control" rows="3"
+              placeholder="Neues To-do eingeben…" required></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="due_at">Fällig am</label>
+            <!-- HTML5: Datum & Uhrzeit in einem Feld, Pflicht -->
+            <input id="due_at" name="due_at" type="datetime-local" class="form-control" required>
+            <p class="help-block">Wähle Datum & Uhrzeit (z. B. 07.11.2025 14:30).</p>
+          </div>
+
+          <button type="submit" class="btn btn-success">To-do hinzufügen</button>
+        </form>
+      </div>
+
+    </div><!-- /.container -->
+  </body>
+</html>
