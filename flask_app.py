@@ -130,5 +130,6 @@ def complete():
     db_write("DELETE FROM todos WHERE user_id=%s AND id=%s", (current_user.id, todo_id,))
     return redirect(url_for("index"))
 
+
 if __name__ == "__main__":
     app.run()
