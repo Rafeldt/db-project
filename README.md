@@ -5,7 +5,7 @@ Diese Anleitung beschreibt den kompletten Ablauf, um das Projekt auszuführen un
 
 ## ✅ Voraussetzungen
 
-### 👥 TESTNAME
+### 👥 SUPERTEAM
 
 -   Alle Teammitglieder besitzen einen **GitHub-Account**
 -   **Eine Person** besitzt einen **PythonAnywhere-Account**
