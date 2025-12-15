@@ -174,6 +174,62 @@ def dbexplorer():
         limit=limit,
     )
 
+@app.get("/db-visualization")
+@login_required
+def db_visualization():
+    # Fetch rows
+    users = db_read("SELECT id, username FROM users ORDER BY id")
+    todos = db_read("SELECT id, user_id, content, due FROM todos ORDER BY user_id, id")
+
+    # D3 “hierarchy path” uses "." as a delimiter, so we sanitize usernames
+    def safe_segment(value: str) -> str:
+        s = str(value or "")
+        out = []
+        for ch in s:
+            if ch.isalnum() or ch in "_-":
+                out.append(ch)
+            else:
+                out.append("_")
+        return "".join(out) or "unknown"
+
+    # Map todos -> user
+    todos_by_user = {}
+    for t in todos:
+        todos_by_user.setdefault(t["user_id"], []).append(t)
+
+    # Build “hierarchical edge bundling” dataset:
+    # - every user is a leaf:  db.users.<username>
+    # - every todo is a leaf:  db.todos.todo_<id>
+    # - edges: user.imports -> todo leaves
+    graph_data = []
+
+    # Todo leaves
+    for t in todos:
+        tid = t["id"]
+        graph_data.append({
+            "name": f"db.todos.todo_{tid}",
+            "label": f"todo #{tid}",
+            "type": "todo",
+            "imports": []
+        })
+
+    # User leaves + edges to their todos
+    for u in users:
+        uid = u["id"]
+        username_display = u.get("username") or f"user {uid}"
+        username_path = safe_segment(username_display)
+
+        imports = [f"db.todos.todo_{t['id']}" for t in todos_by_user.get(uid, [])]
+        graph_data.append({
+            "name": f"db.users.{username_path}",
+            "label": username_display,
+            "type": "user",
+            "imports": imports
+        })
+
+    return render_template("db_visualization.html", graph_data=graph_data)
+
+
 
 if __name__ == "__main__":
     app.run()

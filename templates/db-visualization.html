@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>DB Visualization</title>
+
+  <!-- Optional: if you have a global stylesheet in /static -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; }
+    header { padding: 16px 18px; border-bottom: 1px solid #e6e6e6; display: flex; gap: 12px; align-items: baseline; }
+    header h1 { font-size: 18px; margin: 0; }
+    header .links a { margin-right: 10px; font-size: 14px; text-decoration: none; }
+    #viz-wrap { padding: 12px; }
+    #legend { font-size: 13px; margin: 8px 0 12px; opacity: 0.85; }
+    .tooltip {
+      position: fixed;
+      pointer-events: none;
+      padding: 8px 10px;
+      font-size: 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.98);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+      display: none;
+      max-width: 360px;
+      line-height: 1.35;
+    }
+    svg { width: 100%; height: auto; }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>DB Visualization (Users → Todos)</h1>
+    <div class="links">
+      <a href="{{ url_for('index') }}">Home</a>
+      <a href="{{ url_for('dbexplorer') }}">DB Explorer</a>
+      <a href="{{ url_for('logout') }}">Logout</a>
+    </div>
+  </header>
+
+  <div id="viz-wrap">
+    <div id="legend">
+      Hover a label to highlight its connections. Users connect to their todos.
+    </div>
+    <div id="chart"></div>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+  <script>
+    const data = {{ graph_data | tojson }};
+
+    // ---- Helpers from the classic “Hierarchical Edge Bundling” pattern ----
+    function hierarchy(data, delimiter = ".") {
+      let root;
+      const map = new Map();
+
+      data.forEach(function(d) {
+        const name = d.name;
+        if (map.has(name)) return;
+
+        const i = name.lastIndexOf(delimiter);
+        map.set(name, d);
+
+        if (i >= 0) {
+          const parentName = name.slice(0, i);
+          if (!map.has(parentName)) map.set(parentName, { name: parentName });
+        }
+      });
+
+      data = Array.from(map.values());
+
+      const stratify = d3.stratify()
+        .id(d => d.name)
+        .parentId(d => {
+          const i = d.name.lastIndexOf(delimiter);
+          return i >= 0 ? d.name.slice(0, i) : null;
+        });
+
+      root = stratify(data);
+      return root;
+    }
+
+    function bilink(root) {
+      const leaves = root.leaves();
+      const map = new Map(leaves.map(d => [d.data.name, d]));
+
+      for (const d of leaves) {
+        d.incoming = [];
+        const imports = d.data.imports || [];
+        d.outgoing = imports
+          .map(i => map.get(i))
+          .filter(Boolean)
+          .map(target => [d, target]);
+      }
+
+      for (const d of leaves) {
+        for (const link of d.outgoing) link[1].incoming.push(link);
+      }
+
+      return root;
+    }
+
+    // ---- Build the visualization ----
+    const width = 980;
+    const radius = width / 2;
+
+    const cluster = d3.cluster()
+      .size([2 * Math.PI, radius - 120]);
+
+    const root = hierarchy(data);
+    cluster(root);
+    bilink(root);
+
+    const tooltip = document.getElementById("tooltip");
+
+    const svg = d3.create("svg")
+      .attr("viewBox", [-radius, -radius, width, width])
+      .attr("role", "img")
+      .attr("aria-label", "Database visualization (users and todos)");
+
+    const line = d3.lineRadial()
+      .curve(d3.curveBundle.beta(0.85))
+      .radius(d => d.y)
+      .angle(d => d.x);
+
+    const link = svg.append("g")
+      .attr("fill", "none")
+      .attr("stroke", "#bbb")
+      .attr("stroke-opacity", 0.55)
+      .attr("stroke-width", 1.15)
+      .selectAll("path")
+      .data(root.leaves().flatMap(d => d.outgoing))
+      .join("path")
+      .attr("d", ([i, o]) => line(i.path(o)));
+
+    const node = svg.append("g")
+      .selectAll("g")
+      .data(root.leaves())
+      .join("g")
+      .attr("transform", d => `rotate(${d.x * 180 / Math.PI - 90}) translate(${d.y},0)`);
+
+    const label = node.append("text")
+      .attr("dy", "0.31em")
+      .attr("x", d => d.x < Math.PI ? 6 : -6)
+      .attr("text-anchor", d => d.x < Math.PI ? "start" : "end")
+      .attr("transform", d => d.x >= Math.PI ? "rotate(180)" : null)
+      .attr("font-size", 12)
+      .attr("fill", d => (d.data.type === "user" ? "#0b7285" : "#5f3dc4"))
+      .text(d => d.data.label ?? d.data.name.split(".").pop())
+      .on("mouseenter", (event, d) => {
+        // Highlight connected links
+        link
+          .attr("stroke-opacity", l => (l[0] === d || l[1] === d) ? 1 : 0.06)
+          .attr("stroke", l => {
+            if (l[0] === d) return "#0b7285";   // outgoing from hovered
+            if (l[1] === d) return "#5f3dc4";   // incoming to hovered
+            return "#bbb";
+          })
+          .attr("stroke-width", l => (l[0] === d || l[1] === d) ? 2.2 : 1.1);
+
+        d3.select(event.currentTarget).attr("font-weight", 700);
+
+        // Tooltip
+        tooltip.style.display = "block";
+        tooltip.textContent =
+          (d.data.type === "user")
+            ? `User: ${d.data.label}`
+            : `Todo: ${d.data.label}`;
+      })
+      .on("mousemove", (event) => {
+        tooltip.style.left = (event.clientX + 12) + "px";
+        tooltip.style.top  = (event.clientY + 12) + "px";
+      })
+      .on("mouseleave", (event) => {
+        link
+          .attr("stroke", "#bbb")
+          .attr("stroke-opacity", 0.55)
+          .attr("stroke-width", 1.15);
+
+        d3.select(event.currentTarget).attr("font-weight", null);
+        tooltip.style.display = "none";
+      });
+
+    document.getElementById("chart").appendChild(svg.node());
+  </script>
+</body>
+</html>
