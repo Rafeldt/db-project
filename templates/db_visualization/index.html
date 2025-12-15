@@ -1,473 +1,470 @@
-<!-- templates/db_visualization/index.html -->
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Database Visualization</title>
-
-  <!-- D3 -->
-  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
-
   <style>
-    :root {
-      --bg: #0b0f17;
-      --panel: rgba(255,255,255,.06);
-      --panel2: rgba(255,255,255,.10);
-      --text: rgba(255,255,255,.90);
-      --muted: rgba(255,255,255,.65);
-      --hair: rgba(255,255,255,.16);
-      --link: rgba(255,255,255,.18);
-      --link-hi: rgba(255,255,255,.75);
-      --node: rgba(255,255,255,.55);
-      --node-hi: rgba(255,255,255,.95);
-      --danger: #ff6b6b;
-    }
+    :root { color-scheme: light dark; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    header { padding: 12px 14px; border-bottom: 1px solid rgba(127,127,127,.25); display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    header h1 { font-size: 16px; margin: 0; font-weight: 650; }
+    .spacer { flex: 1; }
+    .pill { font-size: 12px; padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(127,127,127,.35); background: rgba(127,127,127,.08); }
+    input[type="search"] { padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(127,127,127,.35); min-width: 220px; }
+    button { padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(127,127,127,.35); background: rgba(127,127,127,.08); cursor:pointer; }
+    button:hover { background: rgba(127,127,127,.14); }
+    #status { font-size: 12px; opacity: .9; }
+    #wrap { height: calc(100vh - 58px); }
+    svg { width: 100%; height: 100%; display:block; background: rgba(127,127,127,.04); }
 
-    html, body { height: 100%; }
-    body {
-      margin: 0;
-      background: radial-gradient(1200px 800px at 20% 15%, rgba(120,140,255,.15), transparent 60%),
-                  radial-gradient(900px 700px at 80% 30%, rgba(80,255,190,.08), transparent 55%),
-                  var(--bg);
-      color: var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
-      overflow: hidden;
-    }
-
-    header {
-      position: absolute;
-      top: 14px;
-      left: 14px;
-      right: 14px;
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      justify-content: space-between;
-      pointer-events: none; /* let svg still pan/zoom */
-      z-index: 10;
-    }
-
-    .panel {
-      pointer-events: auto;
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      padding: 10px 12px;
-      border: 1px solid var(--hair);
-      background: var(--panel);
-      border-radius: 14px;
-      backdrop-filter: blur(10px);
-      box-shadow: 0 10px 40px rgba(0,0,0,.35);
-      max-width: min(920px, calc(100vw - 28px));
-    }
-
-    .title {
-      font-weight: 650;
-      letter-spacing: .2px;
-      white-space: nowrap;
-    }
-
-    .meta {
-      color: var(--muted);
-      font-size: 13px;
-      white-space: nowrap;
-    }
-
-    .controls {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    input[type="search"]{
-      width: min(340px, 60vw);
-      padding: 8px 10px;
-      border-radius: 10px;
-      border: 1px solid var(--hair);
-      background: rgba(0,0,0,.25);
-      color: var(--text);
-      outline: none;
-    }
-    input[type="search"]::placeholder { color: rgba(255,255,255,.45); }
-
-    button {
-      padding: 8px 10px;
-      border-radius: 10px;
-      border: 1px solid var(--hair);
-      background: rgba(255,255,255,.08);
-      color: var(--text);
-      cursor: pointer;
-    }
-    button:hover { background: rgba(255,255,255,.12); }
-    button:active { transform: translateY(1px); }
-
-    .hint {
-      position: absolute;
-      bottom: 12px;
-      left: 14px;
-      right: 14px;
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      z-index: 10;
-      pointer-events: none;
-    }
-    .hint .panel { pointer-events: auto; }
-    .small { font-size: 12px; color: var(--muted); }
-
-    /* D3 styling */
-    svg { width: 100vw; height: 100vh; display: block; }
-
-    .link {
-      fill: none;
-      stroke: var(--link);
-      stroke-width: 1;
-      pointer-events: none;
-    }
-    .link.is-active {
-      stroke: var(--link-hi);
-      stroke-width: 1.6;
-    }
-
-    .node circle {
-      r: 2.4;
-      fill: var(--node);
-    }
-    .node.is-active circle,
-    .node.is-match circle {
-      fill: var(--node-hi);
-      r: 3.2;
-    }
-    .node.is-dim circle { opacity: .18; }
-
-    .label {
-      font-size: 10px;
-      fill: rgba(255,255,255,.70);
-      user-select: none;
-    }
-    .node.is-active .label,
-    .node.is-match .label {
-      fill: rgba(255,255,255,.95);
-      font-weight: 650;
-    }
-    .node.is-dim .label { opacity: .15; }
+    .link { stroke: rgba(127,127,127,.65); stroke-width: 1.2; }
+    .node circle { stroke: rgba(0,0,0,.35); stroke-width: 1; }
+    .node text { font-size: 11px; pointer-events: none; paint-order: stroke; stroke: rgba(0,0,0,.35); stroke-width: 3px; stroke-linejoin: round; }
+    .node.dim { opacity: .15; }
+    .link.dim { opacity: .08; }
 
     .tooltip {
-      position: absolute;
-      pointer-events: none;
-      padding: 10px 12px;
-      background: rgba(0,0,0,.65);
-      border: 1px solid rgba(255,255,255,.18);
-      border-radius: 12px;
+      position: fixed; z-index: 9999;
+      padding: 8px 10px; border-radius: 10px;
+      background: rgba(20,20,20,.92); color: white;
+      font-size: 12px; line-height: 1.25;
+      max-width: 360px; pointer-events: none;
+      transform: translate(10px, 10px);
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+      display:none;
+    }
+    .legend {
+      position: fixed; right: 12px; top: 70px; z-index: 10;
+      padding: 10px 10px; border-radius: 14px;
+      border: 1px solid rgba(127,127,127,.35);
+      background: rgba(255,255,255,.75);
       backdrop-filter: blur(10px);
-      color: var(--text);
-      font-size: 12px;
-      max-width: 360px;
-      box-shadow: 0 12px 45px rgba(0,0,0,.45);
-      opacity: 0;
-      transform: translateY(4px);
-      transition: opacity .12s ease, transform .12s ease;
-      z-index: 20;
+      max-height: calc(100vh - 110px);
+      overflow:auto;
+      min-width: 180px;
     }
-    .tooltip strong { font-weight: 700; }
-    .tooltip .muted { color: rgba(255,255,255,.7); }
-
-    .error {
-      color: var(--danger);
-      font-weight: 650;
+    @media (prefers-color-scheme: dark) {
+      .legend { background: rgba(20,20,20,.65); }
     }
+    .legend h2 { font-size: 12px; margin: 0 0 6px 0; opacity:.9; }
+    .legend .row { display:flex; align-items:center; gap:8px; padding: 3px 0; font-size: 12px; }
+    .swatch { width: 10px; height: 10px; border-radius: 999px; border: 1px solid rgba(0,0,0,.25); }
+    .hint { font-size: 12px; opacity: .75; padding: 0 14px 10px 14px; }
   </style>
+
+  <!-- Optional: if your Flask route passes data_url, it will be used first -->
+  <script>
+    // If you render this via Flask, you can pass `data_url` into the template:
+    // return render_template("db_visualization.html", data_url=url_for("YOUR_DATA_ENDPOINT"))
+    const DBVIZ_DATA_URL =
+      (typeof {{ 'data_url'|tojson }} !== "undefined" ? {{ 'data_url'|tojson }} : null);
+  </script>
 </head>
 
 <body>
   <header>
-    <div class="panel" style="flex:1; min-width: 280px;">
-      <div style="display:flex; flex-direction:column; gap:2px;">
-        <div class="title">Database Visualization</div>
-        <div id="status" class="meta">Loading…</div>
-      </div>
-    </div>
+    <h1>Database Visualization</h1>
+    <span class="pill" id="counts">Nodes: – | Edges: –</span>
+    <span class="pill" id="endpoint">Endpoint: –</span>
+    <span class="spacer"></span>
 
-    <div class="panel controls">
-      <input id="search" type="search" placeholder="Search (e.g. users:12 or :12 or users)" />
-      <button id="reset">Reset view</button>
-      <button id="clear">Clear highlight</button>
-    </div>
+    <input id="search" type="search" placeholder="Filter by id / label / table…" />
+    <button id="reset">Reset view</button>
+    <button id="toggleLabels">Toggle labels</button>
+    <span id="status"></span>
   </header>
 
-  <svg id="viz" role="img" aria-label="Database visualization"></svg>
-  <div id="tooltip" class="tooltip"></div>
-
   <div class="hint">
-    <div class="panel small">
-      Drag to pan • Scroll to zoom • Hover a row to highlight its cross-table references • Click to lock/unlock selection
-    </div>
-    <div class="panel small">
-      Tip: This page expects <code>/api/db-visualization</code> to return <code>{ tree, links }</code>
-    </div>
+    Drag nodes • Scroll to zoom • Pan by dragging background • Hover nodes for details
   </div>
 
+  <div id="wrap">
+    <svg id="svg" role="img" aria-label="Database graph visualization"></svg>
+  </div>
+
+  <div class="legend" id="legend" style="display:none;">
+    <h2>Tables</h2>
+    <div id="legendRows"></div>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
   <script>
-    const svg = d3.select("#viz");
-    const tooltip = d3.select("#tooltip");
-    const statusEl = document.getElementById("status");
-    const searchEl = document.getElementById("search");
-    const resetBtn = document.getElementById("reset");
-    const clearBtn = document.getElementById("clear");
-
-    const W = () => window.innerWidth;
-    const H = () => window.innerHeight;
-
-    let g, linkSel, nodeSel, labelSel;
-    let zoomBehavior;
-    let lockedId = null;
-
-    function setStatus(html) {
-      statusEl.innerHTML = html;
+    // ---- Robust D3 loader (fixes “failed to load” when CDN is blocked) ----
+    async function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = src;
+        s.async = true;
+        s.onload = resolve;
+        s.onerror = () => reject(new Error("Failed to load script: " + src));
+        document.head.appendChild(s);
+      });
     }
 
-    function showTooltip(evt, html) {
-      tooltip.html(html);
-      const pad = 12;
-      const x = Math.min(evt.clientX + 12, window.innerWidth - 380);
-      const y = Math.min(evt.clientY + 12, window.innerHeight - 140);
-      tooltip
-        .style("left", x + "px")
-        .style("top", y + "px")
-        .style("opacity", 1)
-        .style("transform", "translateY(0px)");
-    }
+    async function ensureD3() {
+      if (window.d3) return;
 
-    function hideTooltip() {
-      tooltip
-        .style("opacity", 0)
-        .style("transform", "translateY(4px)");
-    }
+      // Try CDN(s) first, then a local static fallback path (common in Flask projects)
+      const candidates = [
+        "https://d3js.org/d3.v7.min.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js",
+        "/static/d3.v7.min.js",
+        "/static/js/d3.v7.min.js",
+        "/static/vendor/d3/d3.v7.min.js"
+      ];
 
-    function safeText(s) {
-      return (s == null) ? "" : String(s)
-        .replaceAll("&","&amp;")
-        .replaceAll("<","&lt;")
-        .replaceAll(">","&gt;")
-        .replaceAll('"',"&quot;")
-        .replaceAll("'","&#039;");
-    }
-
-    function initZoom() {
-      zoomBehavior = d3.zoom()
-        .scaleExtent([0.35, 6])
-        .on("zoom", (event) => g.attr("transform", event.transform));
-
-      svg.call(zoomBehavior);
-    }
-
-    function resetView() {
-      svg.transition().duration(300).call(zoomBehavior.transform, d3.zoomIdentity);
-    }
-
-    function buildAdjacency(validLinks) {
-      // Map: leafId -> Set(connectedLeafId)
-      const adj = new Map();
-      const add = (a, b) => {
-        if (!adj.has(a)) adj.set(a, new Set());
-        adj.get(a).add(b);
-      };
-      for (const l of validLinks) {
-        add(l.sourceId, l.targetId);
-        add(l.targetId, l.sourceId);
+      let lastErr = null;
+      for (const src of candidates) {
+        try {
+          await loadScript(src);
+          if (window.d3) return;
+        } catch (e) {
+          lastErr = e;
+        }
       }
-      return adj;
+      throw lastErr || new Error("D3 failed to load.");
     }
 
-    function clearHighlight() {
-      lockedId = null;
-      nodeSel.classed("is-active", false).classed("is-dim", false);
-      linkSel.classed("is-active", false);
+    // ---- Data fetch that survives wrong endpoint names / login redirects ----
+    async function fetchJson(url) {
+      const res = await fetch(url, { credentials: "same-origin" });
+
+      const contentType = (res.headers.get("content-type") || "").toLowerCase();
+      const text = await res.text();
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} from ${url}: ${text.slice(0, 200)}`);
+      }
+
+      // If you got redirected to a login page, you'll see HTML here
+      if (text.trim().startsWith("<")) {
+        throw new Error(
+          `Got HTML (not JSON) from ${url}. This usually means the endpoint is protected and redirected to login.`
+        );
+      }
+
+      try {
+        return JSON.parse(text);
+      } catch {
+        throw new Error(`Response was not valid JSON from ${url}. Content-Type=${contentType}`);
+      }
     }
 
-    function applyHighlight(id, adj) {
-      // Highlight id + its neighbors + incident links, dim everything else
-      const neighbors = adj.get(id) || new Set();
+    async function fetchFromAnyEndpoint() {
+      const candidates = [];
 
-      nodeSel
-        .classed("is-active", d => d.data.id === id || neighbors.has(d.data.id))
-        .classed("is-dim", d => !(d.data.id === id || neighbors.has(d.data.id)));
+      // If Flask injects data_url, try it first.
+      if (DBVIZ_DATA_URL) candidates.push(DBVIZ_DATA_URL);
 
-      linkSel.classed("is-active", d => d.sourceId === id || d.targetId === id);
-    }
-
-    function applySearchMatch(query) {
-      const q = query.trim().toLowerCase();
-      nodeSel.classed("is-match", false);
-      if (!q) return;
-
-      nodeSel.classed("is-match", d => {
-        const id = (d.data.id || "").toLowerCase();
-        const t = (d.data.table || "").toLowerCase();
-        const pk = String(d.data.pk ?? "").toLowerCase();
-
-        // Allow quick patterns:
-        // - "table:12" matches full id
-        // - ":12" matches any pk
-        // - "table" matches table name
-        return id.includes(q) || t.includes(q) || (q.startsWith(":") && pk === q.slice(1));
-      });
-    }
-
-    function resizeViewBox() {
-      svg.attr("viewBox", [ -W()/2, -H()/2, W(), H() ]);
-    }
-
-    function buildViz(tree, links) {
-      svg.selectAll("*").remove();
-      resizeViewBox();
-
-      g = svg.append("g");
-
-      initZoom();
-      resetView();
-
-      // Cluster layout (radial)
-      const radius = Math.min(W(), H()) * 0.42;
-      const root = d3.hierarchy(tree, d => d.children);
-
-      d3.cluster().size([2 * Math.PI, radius])(root);
-
-      const leaves = root.leaves();
-      const leafById = new Map(leaves.map(d => [d.data.id, d]));
-
-      const validLinks = links
-        .map(l => {
-          const s = leafById.get(l.source);
-          const t = leafById.get(l.target);
-          if (!s || !t) return null;
-          return {
-            source: s,
-            target: t,
-            sourceId: l.source,
-            targetId: l.target,
-            meta: l
-          };
-        })
-        .filter(Boolean);
-
-      const adj = buildAdjacency(validLinks);
-
-      const line = d3.lineRadial()
-        .curve(d3.curveBundle.beta(0.85))
-        .radius(d => d.y)
-        .angle(d => d.x);
-
-      // Links
-      linkSel = g.append("g")
-        .attr("stroke-linecap", "round")
-        .selectAll("path")
-        .data(validLinks)
-        .join("path")
-        .attr("class", "link")
-        .attr("d", d => line(d.source.path(d.target)));
-
-      // Nodes (leaves only)
-      nodeSel = g.append("g")
-        .selectAll("g")
-        .data(leaves)
-        .join("g")
-        .attr("class", "node")
-        .attr("transform", d => {
-          const a = d.x - Math.PI / 2;
-          return `rotate(${(a * 180 / Math.PI)}) translate(${d.y},0)`;
-        });
-
-      nodeSel.append("circle");
-
-      // Labels
-      labelSel = nodeSel.append("text")
-        .attr("class", "label")
-        .attr("dy", "0.31em")
-        .attr("x", d => (d.x < Math.PI ? 6 : -6))
-        .attr("text-anchor", d => (d.x < Math.PI ? "start" : "end"))
-        .attr("transform", d => (d.x < Math.PI ? null : "rotate(180)"))
-        .text(d => {
-          // show "table:pk" compactly
-          const t = d.data.table ?? "";
-          const pk = d.data.pk ?? d.data.name ?? "";
-          return `${t}:${pk}`;
-        });
-
-      // Interaction
-      nodeSel
-        .on("mousemove", (event, d) => {
-          const id = d.data.id;
-          const neighbors = adj.get(id) || new Set();
-          const deg = neighbors.size;
-
-          showTooltip(event, `
-            <div><strong>${safeText(d.data.id)}</strong></div>
-            <div class="muted">table: <strong>${safeText(d.data.table)}</strong> • pk: <strong>${safeText(d.data.pk)}</strong></div>
-            <div class="muted">cross-table connections: <strong>${deg}</strong></div>
-            ${lockedId ? `<div class="muted">(selection locked — click node to unlock)</div>` : ``}
-          `);
-        })
-        .on("mouseleave", () => {
-          hideTooltip();
-          if (!lockedId) clearHighlight();
-        })
-        .on("mouseenter", (event, d) => {
-          if (lockedId) return;
-          applyHighlight(d.data.id, adj);
-        })
-        .on("click", (event, d) => {
-          const id = d.data.id;
-          if (lockedId === id) {
-            lockedId = null;
-            clearHighlight();
-          } else {
-            lockedId = id;
-            applyHighlight(id, adj);
-          }
-        });
-
-      // Controls
-      resetBtn.onclick = () => resetView();
-      clearBtn.onclick = () => { clearHighlight(); applySearchMatch(searchEl.value); };
-
-      searchEl.addEventListener("input", () => {
-        applySearchMatch(searchEl.value);
-      });
-
-      // Helpful stats
-      const tableCount = (tree.children || []).length;
-      setStatus(
-        `Schema: <strong>${safeText(tree.name || "db")}</strong> • ` +
-        `Tables: <strong>${tableCount}</strong> • ` +
-        `Rows (leaf nodes): <strong>${leaves.length}</strong> • ` +
-        `Cross-table edges: <strong>${validLinks.length}</strong>`
+      // Common variations (hyphen vs underscore; folder-based routes)
+      candidates.push(
+        "/api/db-visualization",
+        "/api/db_visualization",
+        "/db_visualization/data",
+        "/db_visualization/json",
+        "api/db-visualization",
+        "api/db_visualization",
+        "db_visualization/data",
+        "db_visualization/json"
       );
 
-      // Keep view responsive
-      window.addEventListener("resize", () => {
-        resizeViewBox();
-      }, { passive: true });
+      const tried = [];
+      let lastErr = null;
+
+      for (const url of candidates) {
+        if (!url || tried.includes(url)) continue;
+        tried.push(url);
+        try {
+          const data = await fetchJson(url);
+          return { data, url };
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+
+      throw lastErr || new Error("No endpoints worked: " + tried.join(", "));
     }
 
-    // Load from your Flask endpoint
-    fetch("/api/db-visualization")
-      .then(r => {
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        return r.json();
-      })
-      .then(data => {
-        if (!data || !data.tree || !data.links) {
-          throw new Error("Response must be { tree, links }");
+    // ---- Graph rendering ----
+    function normalizeGraphPayload(payload) {
+      // Accept either {nodes, links} OR {tree, links} OR {nodes, edges}
+      if (payload && Array.isArray(payload.nodes)) {
+        return {
+          nodes: payload.nodes,
+          links: payload.links || payload.edges || []
+        };
+      }
+      if (payload && payload.tree && Array.isArray(payload.links)) {
+        // If you returned a hierarchical tree but also have links, flatten tree to nodes
+        const nodes = [];
+        (function walk(n, parent=null) {
+          if (!n) return;
+          nodes.push(n);
+          if (Array.isArray(n.children)) n.children.forEach(c => walk(c, n));
+        })(payload.tree);
+        return { nodes, links: payload.links };
+      }
+      throw new Error("Unexpected payload shape. Expected {nodes:[…], links:[…]} (or {tree,…}).");
+    }
+
+    function nodeId(n) {
+      // Prefer a stable unique id
+      return n.uid ?? n.id ?? n.pk ?? n.key ?? n.name ?? JSON.stringify(n);
+    }
+
+    function nodeLabel(n) {
+      // Friendly label
+      return n.label ?? n.name ?? String(nodeId(n));
+    }
+
+    function nodeTable(n) {
+      return n.table ?? n.entity ?? n.type ?? "unknown";
+    }
+
+    (async function main() {
+      const statusEl = document.getElementById("status");
+      const endpointEl = document.getElementById("endpoint");
+      const countsEl = document.getElementById("counts");
+      const svgEl = document.getElementById("svg");
+      const tooltipEl = document.getElementById("tooltip");
+      const legendEl = document.getElementById("legend");
+      const legendRowsEl = document.getElementById("legendRows");
+      const searchEl = document.getElementById("search");
+      const resetBtn = document.getElementById("reset");
+      const toggleLabelsBtn = document.getElementById("toggleLabels");
+
+      const setStatus = (msg) => { statusEl.textContent = msg || ""; };
+
+      try {
+        setStatus("Loading D3…");
+        await ensureD3();
+
+        setStatus("Loading graph data…");
+        const { data: raw, url: usedEndpoint } = await fetchFromAnyEndpoint();
+        endpointEl.textContent = "Endpoint: " + usedEndpoint;
+
+        const { nodes: rawNodes, links: rawLinks } = normalizeGraphPayload(raw);
+
+        // Build a stable node map
+        const nodes = rawNodes.map(n => ({
+          ...n,
+          __id: nodeId(n),
+          __label: nodeLabel(n),
+          __table: nodeTable(n)
+        }));
+
+        const byId = new Map(nodes.map(n => [n.__id, n]));
+
+        // Normalize links: allow {source,target} as ids or objects
+        const links = (rawLinks || []).map(l => {
+          const s = (typeof l.source === "object" && l.source) ? (l.source.__id ?? nodeId(l.source)) : l.source;
+          const t = (typeof l.target === "object" && l.target) ? (l.target.__id ?? nodeId(l.target)) : l.target;
+
+          return {
+            ...l,
+            source: byId.get(s) ? s : s,
+            target: byId.get(t) ? t : t
+          };
+        }).filter(l => byId.has(l.source) && byId.has(l.target));
+
+        countsEl.textContent = `Nodes: ${nodes.length} | Edges: ${links.length}`;
+
+        // Table color scale + legend
+        const tables = Array.from(new Set(nodes.map(n => n.__table))).sort();
+        const color = d3.scaleOrdinal(tables, d3.schemeTableau10.concat(d3.schemeSet3 || []));
+
+        legendRowsEl.innerHTML = "";
+        for (const t of tables) {
+          const row = document.createElement("div");
+          row.className = "row";
+          const sw = document.createElement("span");
+          sw.className = "swatch";
+          sw.style.background = color(t);
+          const name = document.createElement("span");
+          name.textContent = t;
+          row.appendChild(sw);
+          row.appendChild(name);
+          legendRowsEl.appendChild(row);
         }
-        buildViz(data.tree, data.links);
-      })
-      .catch(err => {
-        setStatus(`<span class="error">Failed to load:</span> ${safeText(err.message)}`);
+        legendEl.style.display = tables.length ? "block" : "none";
+
+        // SVG setup
+        const svg = d3.select(svgEl);
+        svg.selectAll("*").remove();
+
+        const { width, height } = svgEl.getBoundingClientRect();
+
+        const zoomLayer = svg.append("g").attr("class", "zoom-layer");
+        const linkLayer = zoomLayer.append("g").attr("class", "links");
+        const nodeLayer = zoomLayer.append("g").attr("class", "nodes");
+        const labelLayer = zoomLayer.append("g").attr("class", "labels");
+
+        const zoom = d3.zoom()
+          .scaleExtent([0.1, 6])
+          .on("zoom", (event) => zoomLayer.attr("transform", event.transform));
+
+        svg.call(zoom);
+
+        // Force simulation
+        const simulation = d3.forceSimulation(nodes)
+          .force("link", d3.forceLink(links).id(d => d.__id).distance(50).strength(0.5))
+          .force("charge", d3.forceManyBody().strength(-140))
+          .force("center", d3.forceCenter(width / 2, height / 2))
+          .force("collide", d3.forceCollide().radius(d => 10).strength(0.8));
+
+        const linkSel = linkLayer.selectAll("line")
+          .data(links)
+          .enter()
+          .append("line")
+          .attr("class", "link");
+
+        const nodeSel = nodeLayer.selectAll("g")
+          .data(nodes)
+          .enter()
+          .append("g")
+          .attr("class", "node")
+          .call(
+            d3.drag()
+              .on("start", (event, d) => {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+              })
+              .on("drag", (event, d) => {
+                d.fx = event.x;
+                d.fy = event.y;
+              })
+              .on("end", (event, d) => {
+                if (!event.active) simulation.alphaTarget(0);
+                d.fx = null;
+                d.fy = null;
+              })
+          );
+
+        nodeSel.append("circle")
+          .attr("r", 7)
+          .attr("fill", d => color(d.__table));
+
+        let labelsVisible = true;
+
+        const labelSel = labelLayer.selectAll("text")
+          .data(nodes)
+          .enter()
+          .append("text")
+          .text(d => d.__label)
+          .style("display", labelsVisible ? "block" : "none");
+
+        // Tooltip + hover highlighting
+        function showTooltip(event, d) {
+          tooltipEl.style.display = "block";
+          tooltipEl.textContent = `${d.__table}: ${d.__label} (${d.__id})`;
+          moveTooltip(event);
+        }
+        function moveTooltip(event) {
+          tooltipEl.style.left = `${event.clientX}px`;
+          tooltipEl.style.top = `${event.clientY}px`;
+        }
+        function hideTooltip() {
+          tooltipEl.style.display = "none";
+        }
+
+        // Build adjacency for fast highlight
+        const neighbor = new Map();
+        for (const n of nodes) neighbor.set(n.__id, new Set([n.__id]));
+        for (const l of links) {
+          neighbor.get(l.source).add(l.target);
+          neighbor.get(l.target).add(l.source);
+        }
+
+        nodeSel
+          .on("mouseenter", (event, d) => {
+            showTooltip(event, d);
+            const nset = neighbor.get(d.__id) || new Set([d.__id]);
+            nodeSel.classed("dim", x => !nset.has(x.__id));
+            labelSel.classed("dim", x => !nset.has(x.__id));
+            linkSel.classed("dim", l => !(l.source.__id ? nset.has(l.source.__id) : nset.has(l.source)) ||
+                                       !(l.target.__id ? nset.has(l.target.__id) : nset.has(l.target)));
+          })
+          .on("mousemove", (event) => moveTooltip(event))
+          .on("mouseleave", () => {
+            hideTooltip();
+            nodeSel.classed("dim", false);
+            labelSel.classed("dim", false);
+            linkSel.classed("dim", false);
+          });
+
+        // Search filter
+        function applyFilter(query) {
+          const q = (query || "").trim().toLowerCase();
+          if (!q) {
+            nodeSel.classed("dim", false);
+            labelSel.classed("dim", false);
+            linkSel.classed("dim", false);
+            return;
+          }
+          const keep = new Set(
+            nodes
+              .filter(n =>
+                n.__id.toLowerCase().includes(q) ||
+                n.__label.toLowerCase().includes(q) ||
+                n.__table.toLowerCase().includes(q)
+              )
+              .map(n => n.__id)
+          );
+
+          nodeSel.classed("dim", d => !keep.has(d.__id));
+          labelSel.classed("dim", d => !keep.has(d.__id));
+          linkSel.classed("dim", l => !(keep.has(l.source.__id || l.source) && keep.has(l.target.__id || l.target)));
+        }
+
+        searchEl.addEventListener("input", () => applyFilter(searchEl.value));
+
+        // Controls
+        resetBtn.addEventListener("click", () => {
+          svg.transition().duration(250).call(zoom.transform, d3.zoomIdentity);
+          searchEl.value = "";
+          applyFilter("");
+        });
+
+        toggleLabelsBtn.addEventListener("click", () => {
+          labelsVisible = !labelsVisible;
+          labelSel.style("display", labelsVisible ? "block" : "none");
+        });
+
+        // Tick update
+        simulation.on("tick", () => {
+          linkSel
+            .attr("x1", d => (d.source.x ?? 0))
+            .attr("y1", d => (d.source.y ?? 0))
+            .attr("x2", d => (d.target.x ?? 0))
+            .attr("y2", d => (d.target.y ?? 0));
+
+          nodeSel.attr("transform", d => `translate(${d.x ?? 0},${d.y ?? 0})`);
+
+          labelSel
+            .attr("x", d => (d.x ?? 0) + 10)
+            .attr("y", d => (d.y ?? 0) + 4);
+        });
+
+        setStatus("Loaded.");
+      } catch (err) {
         console.error(err);
-      });
+        setStatus("Failed to load: " + (err && err.message ? err.message : String(err)));
+
+        // Helpful hint directly on the page
+        const hint = document.createElement("div");
+        hint.style.padding = "10px 14px";
+        hint.style.fontSize = "12px";
+        hint.style.opacity = ".85";
+        hint.innerHTML =
+          "<b>Troubleshooting:</b> Open DevTools → Console/Network. " +
+          "If the data request returns HTML, your JSON endpoint is likely redirecting to login " +
+          "(protect the page, but allow the JSON endpoint), or the URL is wrong.";
+        document.body.insertBefore(hint, document.getElementById("wrap"));
+      }
+    })();
   </script>
 </body>
 </html>
