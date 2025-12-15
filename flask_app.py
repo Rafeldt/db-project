@@ -174,7 +174,7 @@ def dbexplorer():
         limit=limit,
     )
 
-@app.get("/db-visualization")
+@app.route("/db-visualization", methods=["GET"])
 @login_required
 def db_visualization():
     # Fetch rows
