@@ -174,6 +174,121 @@ def dbexplorer():
         limit=limit,
     )
 
+def build_db_graph(db, schema: str):
+    """
+    Returns:
+      tree  = hierarchical structure: root -> tables -> rows (leaf nodes)
+      links = [{source: "tableA:1", target: "tableB:99"}, ...] for cross-table refs
+    """
+    cur = db.cursor(dictionary=True)
+
+    # 1) list tables
+    cur.execute("""
+        SELECT TABLE_NAME
+        FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA = %s AND TABLE_TYPE = 'BASE TABLE'
+    """, (schema,))
+    tables = [r["TABLE_NAME"] for r in cur.fetchall()]
+
+    # 2) primary key per table (assumes single-column PK; common for school projects)
+    pk = {}
+    for t in tables:
+        cur.execute("""
+            SELECT COLUMN_NAME
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA=%s AND TABLE_NAME=%s AND COLUMN_KEY='PRI'
+            ORDER BY ORDINAL_POSITION
+            LIMIT 1
+        """, (schema, t))
+        row = cur.fetchone()
+        pk[t] = row["COLUMN_NAME"] if row else None
+
+    # 3) foreign keys (cross-table only)
+    cur.execute("""
+        SELECT TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+        FROM information_schema.KEY_COLUMN_USAGE
+        WHERE TABLE_SCHEMA=%s
+          AND REFERENCED_TABLE_NAME IS NOT NULL
+          AND REFERENCED_TABLE_NAME <> TABLE_NAME
+    """, (schema,))
+    fks = cur.fetchall()
+
+    # 4) build tree: root -> tables -> leaf rows
+    tree = {"name": schema, "children": []}
+
+    for t in tables:
+        pkcol = pk.get(t)
+        if not pkcol:
+            # If a table has no PK, you can skip it or synthesize an id.
+            continue
+
+        # IMPORTANT: table/column identifiers can't be parameterized, so we only use values
+        # from information_schema (trusted) and quote them with backticks.
+        cur.execute(f"SELECT `{pkcol}` AS id FROM `{t}`")
+        rows = cur.fetchall()
+
+        tree["children"].append({
+            "name": t,
+            "children": [
+                {
+                    "name": str(r["id"]),
+                    "id": f"{t}:{r['id']}",      # leaf node id used by D3
+                    "table": t,
+                    "pk": r["id"],
+                }
+                for r in rows
+            ]
+        })
+
+    # 5) build links by reading each FK column values per row
+    links = []
+    for fk in fks:
+        src_table = fk["TABLE_NAME"]
+        src_fkcol = fk["COLUMN_NAME"]
+        dst_table = fk["REFERENCED_TABLE_NAME"]
+        dst_col   = fk["REFERENCED_COLUMN_NAME"]  # usually the PK of dst_table
+        src_pkcol = pk.get(src_table)
+
+        if not src_pkcol:
+            continue
+
+        cur.execute(
+            f"""
+            SELECT `{src_pkcol}` AS src_id, `{src_fkcol}` AS ref_val
+            FROM `{src_table}`
+            WHERE `{src_fkcol}` IS NOT NULL
+            """
+        )
+        for r in cur.fetchall():
+            # assumes ref_val matches the referenced column value (typical FK)
+            links.append({
+                "source": f"{src_table}:{r['src_id']}",
+                "target": f"{dst_table}:{r['ref_val']}",
+                "from_table": src_table,
+                "to_table": dst_table,
+                "fk_column": src_fkcol,
+            })
+
+    cur.close()
+    return tree, links
+
+
+
+@app.route("/db-visualization")
+def db_visualization_page():
+    # render the HTML you already have in templates/db_visualization/...
+    # e.g. templates/db_visualization/index.html
+    return render_template("db_visualization/index.html")
+
+
+@app.route("/api/db-visualization")
+def db_visualization_data():
+    db = get_db()
+    schema = db.database  # or your DB name; adjust if your connector differs
+
+    tree, links = build_db_graph(db, schema)
+    return jsonify({"tree": tree, "links": links})
+
 
 if __name__ == "__main__":
     app.run()
