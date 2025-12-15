@@ -174,13 +174,6 @@ def dbexplorer():
         limit=limit,
     )
 
-from flask import render_template
-from flask_login import login_required
-
-# Use the same DB helper you already use elsewhere in your app:
-# (If your project names it differently, replace db_read accordingly.)
-from db import db_read
-
 
 @app.route("/db-visualization", methods=["GET"])
 @login_required  # remove this line if you want it public
@@ -219,8 +212,6 @@ def db_visualization():
         })
 
     return render_template("db_visualization.html", graph_data=graph_data)
-
-
 
 
 if __name__ == "__main__":
