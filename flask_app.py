@@ -174,60 +174,52 @@ def dbexplorer():
         limit=limit,
     )
 
+from flask import render_template
+from flask_login import login_required
+
+# Use the same DB helper you already use elsewhere in your app:
+# (If your project names it differently, replace db_read accordingly.)
+from db import db_read
+
+
 @app.route("/db-visualization", methods=["GET"])
-@login_required
+@login_required  # remove this line if you want it public
 def db_visualization():
-    # Fetch rows
     users = db_read("SELECT id, username FROM users ORDER BY id")
     todos = db_read("SELECT id, user_id, content, due FROM todos ORDER BY user_id, id")
 
-    # D3 “hierarchy path” uses "." as a delimiter, so we sanitize usernames
-    def safe_segment(value: str) -> str:
-        s = str(value or "")
-        out = []
-        for ch in s:
-            if ch.isalnum() or ch in "_-":
-                out.append(ch)
-            else:
-                out.append("_")
-        return "".join(out) or "unknown"
-
-    # Map todos -> user
+    # group todos by user_id
     todos_by_user = {}
     for t in todos:
         todos_by_user.setdefault(t["user_id"], []).append(t)
 
-    # Build “hierarchical edge bundling” dataset:
-    # - every user is a leaf:  db.users.<username>
-    # - every todo is a leaf:  db.todos.todo_<id>
-    # - edges: user.imports -> todo leaves
+    # Hierarchical Edge Bundling expects:
+    # [{ name: "a.b.c", imports: ["x.y.z", ...] }, ...]
     graph_data = []
 
-    # Todo leaves
+    # todo leaves
     for t in todos:
         tid = t["id"]
         graph_data.append({
             "name": f"db.todos.todo_{tid}",
-            "label": f"todo #{tid}",
+            "label": t["content"],
             "type": "todo",
             "imports": []
         })
 
-    # User leaves + edges to their todos
+    # user leaves + edges to their todos
     for u in users:
         uid = u["id"]
-        username_display = u.get("username") or f"user {uid}"
-        username_path = safe_segment(username_display)
-
-        imports = [f"db.todos.todo_{t['id']}" for t in todos_by_user.get(uid, [])]
+        uname = u["username"]
         graph_data.append({
-            "name": f"db.users.{username_path}",
-            "label": username_display,
+            "name": f"db.users.user_{uid}",
+            "label": uname,
             "type": "user",
-            "imports": imports
+            "imports": [f"db.todos.todo_{t['id']}" for t in todos_by_user.get(uid, [])]
         })
 
     return render_template("db_visualization.html", graph_data=graph_data)
+
 
 
 
