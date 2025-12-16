@@ -175,7 +175,7 @@ def dbexplorer():
     )
 
 @app.route("/db-visualization", methods=["GET"])
-@login_required  # remove if you want it public
+#@login_required  # remove if you want it public
 def db_visualization():
     # Schema per TODOS.sql: todos.user_id -> users.id
     users = db_read("SELECT id, username FROM users ORDER BY id")
